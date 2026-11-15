@@ -548,9 +548,15 @@ fun LazyItemScope.ActionItem(idx: Int, action: Action, onSelect: (Action) -> Uni
         .width(width)
         .fillMaxHeight()
 
-    val contentCol = LocalKeyboardScheme.current.onBackground
+    val toggled = action.toggledState?.value == true
+    val contentCol = if(toggled) LocalKeyboardScheme.current.onPrimary else LocalKeyboardScheme.current.onBackground
+    val toggledBgCol = LocalKeyboardScheme.current.primary
+    val toggledRadius = with(LocalDensity.current) { 18.dp.toPx() }
 
     Box(modifier = modifier
+        .drawBehind {
+            if(toggled) drawCircle(color = toggledBgCol, radius = toggledRadius, style = Fill)
+        }
         .clip(CircleShape)
         .combinedClickable(
             onLongClick = action.altPressImpl?.let { { onLongSelect(action) } },
@@ -567,8 +573,9 @@ fun LazyItemScope.ActionItem(idx: Int, action: Action, onSelect: (Action) -> Uni
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ActionItemSmall(action: Action, onSelect: (Action) -> Unit, onLongSelect: (Action) -> Unit) {
-    val bgCol = LocalKeyboardScheme.current.keyboardContainer
-    val fgCol = LocalKeyboardScheme.current.onKeyboardContainer
+    val toggled = action.toggledState?.value == true
+    val bgCol = if(toggled) LocalKeyboardScheme.current.primary else LocalKeyboardScheme.current.keyboardContainer
+    val fgCol = if(toggled) LocalKeyboardScheme.current.onPrimary else LocalKeyboardScheme.current.onKeyboardContainer
 
     val circleRadius = with(LocalDensity.current) {
         16.dp.toPx()

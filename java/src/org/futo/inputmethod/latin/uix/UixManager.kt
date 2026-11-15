@@ -434,6 +434,10 @@ class UixActionKeyboardManager(val uixManager: UixManager, val latinIME: LatinIM
         //latinIME.inputLogic.cursorRight(steps, stepOverWords, select)
     }
 
+    override fun cursorVertical(up: Boolean, select: Boolean) {
+        latinIME.verticalCursorMover.move(up, select)
+    }
+
     override fun performHapticAndAudioFeedback(code: Int, view: View) {
         AudioAndHapticFeedbackManager.getInstance().performHapticAndAudioFeedback(code, view)
     }

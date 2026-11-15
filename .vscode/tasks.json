@@ -1,0 +1,91 @@
+{
+    // FUTO Keyboard build/install tasks.
+    // Run via: Ctrl+Shift+P -> "Tasks: Run Task" (Ctrl+Shift+B runs the default build task).
+    // Install tasks build first, then install via adb to the connected phone (USB debugging on).
+    // Release builds are signed with keystore.properties if present, otherwise with java/shared.keystore.
+    "version": "2.0.0",
+    "options": {
+        "env": {
+            "ANDROID_HOME": "${env:LOCALAPPDATA}\\Android\\Sdk",
+            // The build runs Python scripts that read UTF-8 JSON; Windows defaults to cp1252.
+            "PYTHONUTF8": "1"
+        }
+    },
+    "windows": {
+        "options": {
+            "shell": { "executable": "cmd.exe", "args": ["/d", "/c"] }
+        }
+    },
+    "tasks": [
+        {
+            "label": "Build Debug",
+            "type": "shell",
+            "command": ".\\gradlew.bat assemble${input:flavor}Debug",
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build Release",
+            "type": "shell",
+            "command": ".\\gradlew.bat assemble${input:flavor}Release",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Install Debug on Phone",
+            "type": "shell",
+            "command": ".\\gradlew.bat install${input:flavor}Debug",
+            "problemMatcher": []
+        },
+        {
+            "label": "Install Release on Phone",
+            "type": "shell",
+            "command": ".\\gradlew.bat install${input:flavor}Release",
+            "problemMatcher": []
+        },
+        {
+            "label": "Uninstall from Phone",
+            "type": "shell",
+            "command": ".\\gradlew.bat uninstall${input:flavor}${input:buildType}",
+            "problemMatcher": []
+        },
+        {
+            "label": "List Connected Devices",
+            "type": "shell",
+            "command": "\"%ANDROID_HOME%\\platform-tools\\adb.exe\" devices -l",
+            "problemMatcher": []
+        },
+        {
+            "label": "Open APK Output Folder",
+            "type": "shell",
+            "command": "explorer build\\outputs\\apk",
+            "problemMatcher": []
+        },
+        {
+            "label": "Clean",
+            "type": "shell",
+            "command": ".\\gradlew.bat clean",
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "flavor",
+            "type": "pickString",
+            "description": "Product flavor",
+            "options": [
+                { "label": "unstable (org.futo.inputmethod.latin.unstable)", "value": "Unstable" },
+                { "label": "stable (org.futo.inputmethod.latin)", "value": "Stable" },
+                { "label": "playstore (org.futo.inputmethod.latin.playstore)", "value": "Playstore" }
+            ],
+            "default": "Unstable"
+        },
+        {
+            "id": "buildType",
+            "type": "pickString",
+            "description": "Build type",
+            "options": ["Debug", "Release"],
+            "default": "Debug"
+        }
+    ]
+}

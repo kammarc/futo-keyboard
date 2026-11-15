@@ -77,6 +77,7 @@ import org.futo.inputmethod.latin.define.ProductionFlags;
 import org.futo.inputmethod.latin.permissions.PermissionsManager;
 import org.futo.inputmethod.latin.personalization.PersonalizationHelper;
 import org.futo.inputmethod.latin.settings.Settings;
+import org.futo.inputmethod.latin.uix.actions.CursorActionsKt;
 import org.futo.inputmethod.latin.settings.SettingsValues;
 import org.futo.inputmethod.latin.suggestions.SuggestionStripViewAccessor;
 import org.futo.inputmethod.latin.suggestions.SuggestionStripViewListener;
@@ -633,7 +634,9 @@ public class LatinIMELegacy implements KeyboardActionListener,
     public void onMovePointer(int steps) {
         mImeManager.getActiveIME(
                 mSettings.getCurrent()
-        ).onMovePointer(steps, false, null);
+        ).onMovePointer(steps, false,
+                // Select while the "Select (Shift)" action is toggled on, otherwise follow keyboard shift
+                CursorActionsKt.getSelectionModeState().getValue() ? Boolean.TRUE : null);
     }
 
     @Override

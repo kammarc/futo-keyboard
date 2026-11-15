@@ -14,6 +14,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.CompletionInfo
+import android.view.inputmethod.CursorAnchorInfo
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestionsRequest
 import android.view.inputmethod.InlineSuggestionsResponse
@@ -75,6 +76,8 @@ import org.futo.inputmethod.latin.uix.SUGGESTION_BLACKLIST
 import org.futo.inputmethod.latin.uix.SettingsKey
 import org.futo.inputmethod.latin.uix.THEME_KEY
 import org.futo.inputmethod.latin.uix.UixManager
+import org.futo.inputmethod.latin.uix.VerticalCursorMover
+import org.futo.inputmethod.event.Event
 import org.futo.inputmethod.latin.uix.actions.CanThrowIfDebug
 import org.futo.inputmethod.latin.uix.createInlineSuggestionsRequest
 import org.futo.inputmethod.latin.uix.dataStore
@@ -201,6 +204,14 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
     )
 
     val uixManager = UixManager(this)
+
+    val verticalCursorMover = VerticalCursorMover(
+        getInputConnection = { currentInputConnection },
+        sendKeyEvent = { keyCode, metaState ->
+            imeManager.getActiveIME(Settings.getInstance().current)
+                .onEvent(Event.createDownUpKeyEvent(keyCode, metaState))
+        }
+    )
 
     val sizingCalculator = KeyboardSizingCalculator(this, uixManager)
 
@@ -629,6 +640,7 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
         onSizeMaybeUpdated()
         imeManager.onStartInput()
         latinIMELegacy.onStartInputView(info, restarting)
+        verticalCursorMover.onStartInput()
         lifecycleScope.launch { uixManager.showUpdateNoticeIfNeeded() }
         updateColorsIfDynamicChanged()
         uixManager.updateEmojiTranslationsIfNeeded()
@@ -688,6 +700,13 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
             candidatesStart,
             candidatesEnd
         )
+
+        verticalCursorMover.onUpdateSelection(newSelStart, newSelEnd)
+    }
+
+    override fun onUpdateCursorAnchorInfo(cursorAnchorInfo: CursorAnchorInfo?) {
+        super.onUpdateCursorAnchorInfo(cursorAnchorInfo)
+        cursorAnchorInfo?.let { verticalCursorMover.onUpdateCursorAnchorInfo(it) }
     }
 
     override fun onExtractedTextClicked() {
@@ -887,6 +906,7 @@ class LatinIME : InputMethodServiceCompose(), LatinIMELegacy.SuggestionStripCont
 
         val currentIC = currentInputConnection
         currentIC?.requestCursorUpdates(InputConnection.CURSOR_UPDATE_IMMEDIATE)
+        verticalCursorMover.onStartInput()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             super.getCurrentInputConnection()?.setImeConsumesInput(to != null)

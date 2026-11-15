@@ -43,6 +43,8 @@ import org.futo.inputmethod.latin.common.InputPointers;
 import org.futo.inputmethod.latin.define.DebugFlags;
 import org.futo.inputmethod.latin.settings.Settings;
 import org.futo.inputmethod.latin.settings.SettingsValues;
+import org.futo.inputmethod.latin.uix.actions.CursorActionsKt;
+import org.futo.inputmethod.latin.uix.actions.RegistryKt;
 import org.futo.inputmethod.latin.utils.ResourceUtils;
 import org.futo.inputmethod.v2keyboard.Direction;
 
@@ -993,10 +995,28 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
                             mProgressReported = true;
                             mCursorMoved = true;
                         }
-                    } else if(steps != 0) {
-                        mCursorMoved = true;
-                        mStartX += steps * pointerStep;
-                        sListener.onMovePointer(steps);
+                    } else {
+                        if(steps != 0) {
+                            mCursorMoved = true;
+                            mStartX += steps * pointerStep;
+                            sListener.onMovePointer(steps);
+                        }
+
+                        // Moving the finger up/down moves the cursor up/down (uses a larger step
+                        // so that small vertical jitter during horizontal swipes is ignored)
+                        final int verticalSteps = (y - mStartY) / sPointerBigStep;
+                        if(verticalSteps != 0) {
+                            mCursorMoved = true;
+                            mStartY += verticalSteps * sPointerBigStep;
+
+                            final int arrowCode = RegistryKt.getKeyCode(verticalSteps < 0
+                                    ? CursorActionsKt.getArrowUpAction()
+                                    : CursorActionsKt.getArrowDownAction());
+                            for(int i = 0; i < Math.abs(verticalSteps); i++) {
+                                sListener.onCodeInput(arrowCode, Constants.NOT_A_COORDINATE,
+                                        Constants.NOT_A_COORDINATE, false /* isKeyRepeat */);
+                            }
+                        }
                     }
                 }
 

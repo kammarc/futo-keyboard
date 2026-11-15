@@ -345,7 +345,7 @@ fun TextEditScreen(
     moveCursor: (direction: Direction, ctrl: Boolean, shift: Boolean) -> Unit,
     keyboardShown: Boolean
 ) {
-    val shiftState = remember { mutableStateOf(false) }
+    val shiftState = SelectionModeState
     val ctrlState = remember { mutableStateOf(false) }
 
     val sendMoveCursor = { direction: Direction -> moveCursor(direction, ctrlState.value, shiftState.value) }
@@ -421,6 +421,8 @@ val TextEditAction = Action(
 
                             direction == Direction.Left -> manager.cursorLeft(1, stepOverWords = ctrl, select = shift)
                             direction == Direction.Right -> manager.cursorRight(1, stepOverWords = ctrl, select = shift)
+                            !ctrl && direction == Direction.Up -> manager.cursorVertical(up = true, select = shift)
+                            !ctrl && direction == Direction.Down -> manager.cursorVertical(up = false, select = shift)
                             direction == Direction.Up -> manager.sendKeyEvent(KeyEvent.KEYCODE_DPAD_UP, keyEventMetaState)
                             direction == Direction.Down -> manager.sendKeyEvent(KeyEvent.KEYCODE_DPAD_DOWN, keyEventMetaState)
                         }

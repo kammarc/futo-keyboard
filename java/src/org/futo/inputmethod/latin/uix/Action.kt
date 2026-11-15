@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -78,6 +79,9 @@ interface KeyboardManagerForAction {
 
     fun cursorLeft(steps: Int, stepOverWords: Boolean, select: Boolean)
     fun cursorRight(steps: Int, stepOverWords: Boolean, select: Boolean)
+
+    /** Moves the cursor one line up/down, staying in place if there's no line in that direction */
+    fun cursorVertical(up: Boolean, select: Boolean)
 
     fun performHapticAndAudioFeedback(code: Int, view: View)
     fun announce(s: String)
@@ -190,6 +194,9 @@ data class Action(
     val shownInEditor: Boolean = true,
 
     val settingsMenu: UserSettingsMenu? = null,
+
+    /** If set, the action is a toggle and its button is highlighted in the action bar while true */
+    val toggledState: State<Boolean>? = null,
 )
 
 data class LangSpecAction(
