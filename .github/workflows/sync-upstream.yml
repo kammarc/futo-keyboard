@@ -1,11 +1,13 @@
 # Watches upstream FUTO Keyboard for new releases, merges them into this fork,
-# and builds + publishes a signed APK as a GitHub Release.
+# and builds + publishes a signed APK as a GitHub Release (for Obtainium).
 #
 # Flow:
-#   1. Find the newest stable upstream tag (e.g. 0.1.31, skips -rc tags).
-#   2. If it is already part of master -> stop (nothing to do).
-#   3. Merge it into master. On conflict -> abort, open an issue, stop.
-#   4. Push master, build the release APK, publish it as a GitHub Release.
+#   1. Find the newest stable upstream tag (e.g. 0.1.31 or 0.1.29.1, skips -rc tags).
+#   2. If it is not yet part of master -> merge it and push.
+#      On conflict -> abort, fail the run (and open an issue if Issues are enabled).
+#   3. If no fork release exists yet for that upstream tag -> build the release
+#      APK and publish it as a GitHub Release. A failed build is therefore
+#      retried on the next scheduled run.
 #
 # Required repository secrets (Settings -> Secrets and variables -> Actions):
 #   KEYSTORE_BASE64    base64 of your .jks keystore
@@ -21,37 +23,49 @@ on:
   workflow_dispatch:
     inputs:
       force_build:
-        description: "Build and publish even if there is no new upstream release"
+        description: "Build and publish even if a release for the latest upstream tag already exists"
         type: boolean
         default: false
 
 permissions:
   contents: write # push master, create releases
   issues: write   # report merge conflicts
+  actions: write  # keep the schedule from being auto-disabled
 
 concurrency:
   group: sync-upstream
   cancel-in-progress: false
 
+defaults:
+  run:
+    shell: bash # explicit -> runs with `-eo pipefail`
+
 env:
   UPSTREAM_URL: https://github.com/futo-org/android-keyboard.git
   BRANCH: master
   FLAVOR: Unstable # Unstable | Stable | Playstore
-  NDK_VERSION: 28.2.13676358
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     outputs:
       tag: ${{ steps.check.outputs.tag }}
       build: ${{ steps.check.outputs.build }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.BRANCH }}
           fetch-depth: 0 # full history: needed for merging and for versionCode
           submodules: false
+
+      # GitHub disables scheduled workflows after 60 days without repository
+      # activity. Re-enabling resets that timer.
+      - name: Keep schedule alive
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/sync-upstream.yml/enable" || true
 
       - name: Configure git
         run: |
@@ -62,16 +76,30 @@ jobs:
 
       - name: Check for new upstream release
         id: check
+        env:
+          FORCE_BUILD: ${{ inputs.force_build == true }}
         run: |
-          TAG=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          TAG=$(git ls-remote --tags --refs upstream | sed 's#.*refs/tags/##' \
+                | grep -E '^[0-9]+(\.[0-9]+){2,3}$' | sort -V | tail -n 1)
+          if [ -z "$TAG" ]; then
+            echo "::error::No upstream release tag found"
+            exit 1
+          fi
           echo "Latest upstream release: $TAG"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
           if git merge-base --is-ancestor "$TAG" HEAD; then
             echo "Already merged."
             echo "merge=false" >> "$GITHUB_OUTPUT"
-            echo "build=${{ inputs.force_build == true }}" >> "$GITHUB_OUTPUT"
           else
             echo "merge=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Fork releases are tagged "<upstream tag>-fork.<n>[-flavor]"
+          if [ -n "$(git ls-remote --tags --refs origin "refs/tags/$TAG-fork.*")" ] && [ "$FORCE_BUILD" != "true" ]; then
+            echo "A fork release for $TAG already exists."
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
             echo "build=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -87,23 +115,25 @@ jobs:
             CONFLICTS=$(git diff --name-only --diff-filter=U)
             git merge --abort
             TITLE="Upstream release $TAG has merge conflicts"
-            if [ -z "$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[].number')" ]; then
-              gh issue create --title "$TITLE" --body "$(printf 'Automatic merge of upstream `%s` into `%s` failed.\n\nConflicting files:\n```\n%s\n```\n\nResolve locally:\n```\ngit fetch %s --tags\ngit merge %s\n```' "$TAG" "$BRANCH" "$CONFLICTS" "$UPSTREAM_URL" "$TAG")"
+            BODY=$(printf 'Automatic merge of upstream `%s` into `%s` failed.\n\nConflicting files:\n```\n%s\n```\n\nResolve locally:\n```\ngit fetch %s --tags\ngit merge %s\ngit push\n```\nThe next scheduled run then builds and publishes the release.' "$TAG" "$BRANCH" "$CONFLICTS" "$UPSTREAM_URL" "$TAG")
+            # Best effort: Issues may be disabled on a fork.
+            if [ -z "$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[].number' 2>/dev/null)" ]; then
+              gh issue create --title "$TITLE" --body "$BODY" || echo "::warning::Could not open an issue (are Issues enabled for this repository?)"
             fi
-            echo "::error::Merge conflict with upstream $TAG"
+            echo "::error title=Merge conflict with upstream $TAG::Conflicting files:%0A${CONFLICTS//$'\n'/%0A}"
             exit 1
           fi
 
   build:
     needs: sync
     if: needs.sync.outputs.build == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
       - name: Free disk space
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk/2* /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.BRANCH }} # includes the merge pushed by the sync job
           fetch-depth: 0
@@ -116,14 +146,25 @@ jobs:
           git submodule update --init --recursive --force
           git submodule foreach --recursive git lfs pull
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21 # same as upstream's CI image
           cache: gradle
 
-      - name: Install NDK
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK_VERSION" > /dev/null
+      - name: Install Android SDK components
+        run: |
+          # Take the versions from build.gradle so upstream bumps are followed.
+          NDK_VERSION=$(sed -nE "s/^\s*ndkVersion\s+'([^']+)'.*/\1/p" build.gradle | head -n 1)
+          COMPILE_SDK=$(sed -nE "s/^\s*compileSdk\s+([0-9]+).*/\1/p" build.gradle | head -n 1)
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          echo "NDK $NDK_VERSION, platform android-$COMPILE_SDK"
+          (yes || true) | "$SDKMANAGER" --licenses > /dev/null
+          (yes || true) | "$SDKMANAGER" \
+            "ndk;$NDK_VERSION" \
+            "platforms;android-$COMPILE_SDK" \
+            "build-tools;$COMPILE_SDK.0.0" \
+            "cmake;3.22.1" > /dev/null
 
       - name: Set up signing
         env:
@@ -148,26 +189,44 @@ jobs:
         env:
           TAG: ${{ needs.sync.outputs.tag }}
         run: |
+          FLAVOR_LC=$(echo "$FLAVOR" | tr '[:upper:]' '[:lower:]')
           export VERSION_CODE=$(git rev-list --first-parent --count HEAD)
           export VERSION_NAME="$TAG-fork.$VERSION_CODE"
           export BRANCH_NAME="$BRANCH"
-          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+
+          # build.gradle appends "-<flavor>" to the versionName for non-stable
+          # flavors. Tag the release with the exact versionName of the APK so
+          # Obtainium's version detection matches.
+          RELEASE_TAG="$VERSION_NAME"
+          if [ "$FLAVOR_LC" != "stable" ]; then RELEASE_TAG="$VERSION_NAME-$FLAVOR_LC"; fi
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+
           chmod +x gradlew
-          ./gradlew "assemble${FLAVOR}Release" --no-daemon --stacktrace
-          FLAVOR_LC=$(echo "$FLAVOR" | tr '[:upper:]' '[:lower:]')
-          APK=$(find build/outputs/apk/$FLAVOR_LC/release -name '*.apk' | head -n 1)
-          mv "$APK" "futo-keyboard-$FLAVOR_LC-$VERSION_NAME.apk"
+          if ! ./gradlew "assemble${FLAVOR}Release" --no-daemon --stacktrace 2>&1 | tee gradle.log; then
+            # Surface the cause as an annotation on the run page.
+            MSG=$(grep -E -A6 '^e: |^\* What went wrong|: error: |^FAILURE:|CMake Error' gradle.log | cut -c1-300 | head -n 40 || true)
+            MSG="${MSG//'%'/%25}"; MSG="${MSG//$'\r'/}"; MSG="${MSG//$'\n'/%0A}"
+            echo "::error title=Gradle build failed::$MSG"
+            exit 1
+          fi
+
+          APK=$(find "build/outputs/apk/$FLAVOR_LC/release" -name '*.apk' | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "::error::Build succeeded but no APK was found"
+            exit 1
+          fi
+          mv "$APK" "futo-keyboard-$RELEASE_TAG.apk"
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.sync.outputs.tag }}
         run: |
-          gh release create "$VERSION_NAME" futo-keyboard-*.apk \
+          gh release create "$RELEASE_TAG" "futo-keyboard-$RELEASE_TAG.apk" \
             --target "$(git rev-parse HEAD)" \
-            --title "FUTO Keyboard $VERSION_NAME" \
+            --title "FUTO Keyboard $RELEASE_TAG" \
             --notes "Based on upstream release [$TAG](https://github.com/futo-org/android-keyboard/releases/tag/$TAG), merged into this fork."
 
       - name: Clean up signing files
         if: always()
-        run: rm -f key.jks keystore.properties
+        run: rm -f key.jks keystore.properties gradle.log
