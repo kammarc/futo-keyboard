@@ -250,7 +250,7 @@ fun CtrlShiftMetaKeys(modifier: Modifier, ctrlState: MutableState<Boolean>, shif
 }
 
 @Composable
-fun SideKeys(modifier: Modifier, onEvent: (Int, Int) -> Unit, onCodePoint: (Int) -> Unit, keyboardShown: Boolean) {
+fun SideKeys(modifier: Modifier, onEvent: (Int, Int) -> Unit, onCodePoint: (Int) -> Unit, onCopy: () -> Unit, keyboardShown: Boolean) {
     Column(modifier = modifier) {
         ActionKey(
             modifier = Modifier
@@ -258,7 +258,7 @@ fun SideKeys(modifier: Modifier, onEvent: (Int, Int) -> Unit, onCodePoint: (Int)
                 .fillMaxWidth(),
             repeatable = false,
             color = MaterialTheme.colorScheme.primaryContainer,
-            onTrigger = { onEvent(KeyEvent.KEYCODE_C, KeyEvent.META_CTRL_ON) }
+            onTrigger = onCopy
         ) {
             IconWithColor(
                 iconId = R.drawable.copy,
@@ -343,7 +343,8 @@ fun TextEditScreen(
     onCodePoint: (Int) -> Unit,
     onEvent: (Int, Int) -> Unit,
     moveCursor: (direction: Direction, ctrl: Boolean, shift: Boolean) -> Unit,
-    keyboardShown: Boolean
+    keyboardShown: Boolean,
+    onCopy: () -> Unit = { onEvent(KeyEvent.KEYCODE_C, KeyEvent.META_CTRL_ON) }
 ) {
     val shiftState = SelectionModeState
     val ctrlState = remember { mutableStateOf(false) }
@@ -374,6 +375,7 @@ fun TextEditScreen(
                 .weight(1.0f),
             onEvent = onEvent,
             onCodePoint = onCodePoint,
+            onCopy = onCopy,
             keyboardShown = keyboardShown
         )
     }
@@ -429,7 +431,11 @@ val TextEditAction = Action(
 
                         manager.performHapticAndAudioFeedback(Constants.CODE_TAB, view)
                     },
-                    keyboardShown = keyboardShown
+                    keyboardShown = keyboardShown,
+                    onCopy = {
+                        manager.copyToClipboard(cut = false)
+                        manager.performHapticAndAudioFeedback(Constants.CODE_TAB, view)
+                    }
                 )
             }
         }

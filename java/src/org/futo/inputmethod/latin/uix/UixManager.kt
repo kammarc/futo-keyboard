@@ -15,6 +15,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InlineSuggestionsResponse
 import android.view.inputmethod.InputConnection
 import android.widget.Toast
@@ -126,6 +127,7 @@ import org.futo.inputmethod.latin.uix.actions.ActionRegistry
 import org.futo.inputmethod.latin.uix.actions.AllActions
 import org.futo.inputmethod.latin.uix.actions.BugViewerAction
 import org.futo.inputmethod.latin.uix.actions.BugViewerState
+import org.futo.inputmethod.latin.uix.actions.SelectionModeState
 import org.futo.inputmethod.latin.uix.actions.KeyboardModeAction
 import org.futo.inputmethod.latin.uix.actions.PersistentEmojiState
 import org.futo.inputmethod.latin.uix.actions.keyCode
@@ -518,7 +520,23 @@ class UixActionKeyboardManager(val uixManager: UixManager, val latinIME: LatinIM
             sendKeyEvent(KeyEvent.KEYCODE_X, KeyEvent.META_CTRL_ON)
         } else {
             sendKeyEvent(KeyEvent.KEYCODE_C, KeyEvent.META_CTRL_ON)
+
+            // Like the system copy action: once copied, deselect the text, leaving the cursor at
+            // the end of the former selection. The editor processes input connection calls in
+            // order, so the copy above happens before the selection is collapsed.
+            latinIME.currentInputConnection?.let { ic ->
+                val extracted = ic.getExtractedText(ExtractedTextRequest(), 0)
+                if(extracted != null && extracted.selectionStart != extracted.selectionEnd
+                    && extracted.selectionStart >= 0 && extracted.selectionEnd >= 0) {
+                    val end = extracted.startOffset +
+                            maxOf(extracted.selectionStart, extracted.selectionEnd)
+                    ic.setSelection(end, end)
+                }
+            }
         }
+
+        // The selection is gone either way, so leave selection mode
+        SelectionModeState.value = false
     }
 
     override fun pasteFromClipboard() {

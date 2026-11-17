@@ -845,6 +845,12 @@ val KeyboardSettingsMenu = UserSettingsMenu(
             key = Settings.PREF_ENABLE_ALT_PERIOD_KEY,
             default = {false},
         ),
+        userSettingToggleSharedPrefs(
+            title = R.string.keyboard_settings_show_language_on_spacebar,
+            subtitle = R.string.keyboard_settings_show_language_on_spacebar_subtitle,
+            key = Settings.PREF_SHOW_LANGUAGE_ON_SPACEBAR,
+            default = {true},
+        ),
         userSettingToggleDataStore(
             title = R.string.keyboard_settings_hide_when_hardware_keyboard_is_connected,
             setting = HideKeyboardWhenHardKeyboardConnected

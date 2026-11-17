@@ -1,5 +1,6 @@
 package org.futo.inputmethod.latin.uix.actions
 
+import android.inputmethodservice.InputMethodService
 import android.view.KeyEvent
 import org.futo.inputmethod.latin.R
 import org.futo.inputmethod.latin.uix.Action
@@ -18,6 +19,16 @@ val CutAction = Action(
     name = R.string.action_cut_title,
     simplePressImpl = { manager, _ ->
         manager.copyToClipboard(cut = true)
+    },
+    windowImpl = null,
+)
+
+val HideKeyboardAction = Action(
+    icon = R.drawable.chevron_down,
+    name = R.string.action_hide_keyboard_title,
+    simplePressImpl = { manager, _ ->
+        manager.closeActionWindow()
+        (manager.getContext() as? InputMethodService)?.requestHideSelf(0)
     },
     windowImpl = null,
 )

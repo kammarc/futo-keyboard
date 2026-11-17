@@ -100,6 +100,7 @@ public class SettingsValues {
     public final boolean mIsNumberRowEnabledByUser;
     public final boolean mUseLocalNumbers;
     public final boolean mIsArrowRowEnabled;
+    public final boolean mShowLanguageOnSpacebar;
     public final boolean mIsUsingAlternativePeriodKey;
     public final boolean mUseDictionaryKeyBoosting;
     public final int mScreenMetrics;
@@ -182,6 +183,7 @@ public class SettingsValues {
                 || inputAttributes.mIsEmailField;
         mUseLocalNumbers = !prefs.getBoolean(Settings.PREF_USE_WESTERN_NUMERALS, false);
         mIsArrowRowEnabled = prefs.getBoolean(Settings.PREF_ENABLE_ARROW_ROW, false);
+        mShowLanguageOnSpacebar = prefs.getBoolean(Settings.PREF_SHOW_LANGUAGE_ON_SPACEBAR, true);
         mIsUsingAlternativePeriodKey = prefs.getBoolean(Settings.PREF_ENABLE_ALT_PERIOD_KEY, false) && SettingsValues.altPeriodKeyAllowedForLocale(mLocale);
         mUseDictionaryKeyBoosting = prefs.getBoolean(Settings.PREF_USE_DICT_KEY_BOOSTING, true);
         mUseContactsDict = prefs.getBoolean(Settings.PREF_KEY_USE_CONTACTS_DICT, true);
@@ -568,6 +570,8 @@ public class SettingsValues {
         sb.append("" + mUseLocalNumbers);
         sb.append("\n   mIsArrowRowEnabled = ");
         sb.append("" + mIsArrowRowEnabled);
+        sb.append("\n   mShowLanguageOnSpacebar = ");
+        sb.append("" + mShowLanguageOnSpacebar);
         sb.append("\n   mIsUsingAlternativePeriodKey = ");
         sb.append("" + mIsUsingAlternativePeriodKey);
         sb.append("\n   mUseDictionaryKeyBoosting = ");

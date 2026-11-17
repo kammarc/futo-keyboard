@@ -248,8 +248,10 @@ public final class KeyboardSwitcher implements SwitchActions {
         final boolean subtypeChanged = (oldKeyboard == null)
                 || !newKeyboard.mId.mLocale.equals(oldKeyboard.mId.mLocale)
                 || !newKeyboard.mId.mKeyboardLayoutSetName.equals(oldKeyboard.mId.mKeyboardLayoutSetName);
-        final int languageOnSpacebarFormatType = LanguageOnSpacebarUtils
-                .getLanguageOnSpacebarFormatType(newKeyboard.mId.mLocale, newKeyboard.mId.mKeyboardLayoutSetName);
+        final int languageOnSpacebarFormatType = currentSettingsValues.mShowLanguageOnSpacebar
+                ? LanguageOnSpacebarUtils.getLanguageOnSpacebarFormatType(
+                        newKeyboard.mId.mLocale, newKeyboard.mId.mKeyboardLayoutSetName)
+                : LanguageOnSpacebarUtils.FORMAT_TYPE_NONE;
         final boolean hasMultipleEnabledIMEsOrSubtypes = Subtypes.INSTANCE.hasMultipleEnabledSubtypes(mThemeContext);
         keyboardView.startDisplayLanguageOnSpacebar(subtypeChanged, languageOnSpacebarFormatType,
                 hasMultipleEnabledIMEsOrSubtypes);
